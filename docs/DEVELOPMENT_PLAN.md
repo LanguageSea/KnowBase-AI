@@ -146,10 +146,10 @@ RAG   │    │    │    │    │    │ ██ │ ██ │    │    │
 
 | ID | 任务 | 产出 | 依赖 | 验收 |
 |---|---|---|---|---|
-| T1.1 | 仓库骨架 | 四目录 + `.gitignore` + `.env.example` + `README` | T0.7 | 首提交；`.env` 不在库中 |
-| T1.2 | 基础设施 | `deploy/docker-compose.yml`（mysql/redis/qdrant） | T1.1 | 3 容器 healthy；重启后数据还在 |
-| T1.3 | 迁移与种子 | Flyway + V1 + `R__seed.sql`（1 个管理员） | T1.2, T0.2 | 空库启动自动建 17 表；重复启动不报错 |
-| T1.4 | Java 骨架 | 统一响应体、全局异常、traceId filter、`/health`（真实探活） | T1.3 | 停掉 Qdrant 后 `/health` 指出具体依赖，不是笼统 500 |
+| T1.1 ✅ | 仓库骨架 | 四目录 + `.gitignore` + `.env.example` + `README` | T0.7 | 首提交；`.env` 不在库中 |
+| T1.2 ✅ | 基础设施 | `deploy/docker-compose.yml`（mysql/redis/qdrant） | T1.1 | 3 容器 healthy；重启后数据还在 |
+| T1.3 ✅ | 迁移与种子 | Flyway + V1 + `R__seed.sql`（1 个管理员） | T1.2, T0.2 | 空库启动自动建 17 表；重复启动不报错 |
+| T1.4 ✅ | Java 骨架 | 统一响应体、全局异常、traceId filter、`/health`（真实探活） | T1.3 | 停掉 Qdrant 后 `/health` 指出具体依赖，不是笼统 500 |
 | T1.5 | Python 骨架 | `/internal/health` + 结构化日志 + 请求校验 | T1.1 | traceId 从 header 透传到日志 |
 | T1.6 | 最小登录 | `POST /auth/login` + JWT 签发/校验 | T1.4 | 种子管理员能登录；无 token 访问受保护接口 401 |
 | T1.7 | 最小知识库 | 建库、列表（仅本人可见） | T1.6 | 建完能在列表看到 |
