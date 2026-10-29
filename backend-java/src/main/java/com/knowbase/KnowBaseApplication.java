@@ -2,6 +2,7 @@ package com.knowbase;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.boot.context.properties.ConfigurationPropertiesScan;
 import org.springframework.scheduling.annotation.EnableScheduling;
 
 /**
@@ -12,6 +13,7 @@ import org.springframework.scheduling.annotation.EnableScheduling;
  * Python AI 服务只做计算，不持有任何权限判断逻辑。
  */
 @EnableScheduling
+@ConfigurationPropertiesScan
 @SpringBootApplication
 public class KnowBaseApplication {
 

@@ -1,21 +1,31 @@
 server:
   port: ${SERVER_PORT:8080}
   shutdown: graceful
+  # 绝不把堆栈/异常类名/绑定错误回给客户端；排查一律靠 traceId + 服务端日志
+  error:
+    include-stacktrace: never
+    include-message: never
+    include-binding-errors: never
+    include-exception: false
+    whitelabel:
+      enabled: false
+  tomcat:
+    max-http-form-post-size: 2MB
+    max-swallow-size: 2MB
 
 spring:
   application:
     name: knowbase-backend
-
+  profiles:
+    default: dev
   datasource:
-    url: jdbc:mysql://${MYSQL_HOST:127.0.0.1}:${MYSQL_PORT:33307}/${MYSQL_DATABASE:knowbase}?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
-    username: ${MYSQL_USER:knowbase}
-    password: ${MYSQL_PASSWORD:change-me-app}
+    # 连接串与账号密码按 profile 区分：dev 明文本机连，prod 强制 TLS。
+    # 这里刻意不提供任何默认密码——缺环境变量就必须启动失败，而不是带着弱口令跑起来。
     hikari:
       maximum-pool-size: 10
       minimum-idle: 2
       connection-timeout: 3000
       validation-timeout: 2000
-
   data:
     redis:
       host: ${REDIS_HOST:127.0.0.1}
@@ -23,21 +33,28 @@ spring:
       password: ${REDIS_PASSWORD:}
       timeout: 2s
       connect-timeout: 2s
-
   flyway:
     enabled: true
     locations: classpath:db/migration
     validate-on-migrate: true
     out-of-order: false
+    # 防止误执行 flyway clean 把整个库删掉
+    clean-disabled: true
 
 knowbase:
   qdrant:
     url: ${QDRANT_URL:http://127.0.0.1:6333}
-    timeout-ms: 2000
+    api-key: ${QDRANT_API_KEY:}
+    timeout-ms: ${QDRANT_TIMEOUT_MS:2000}
+  security:
+    # 32 字节 base64；用于加密 ai_model_config.api_key_cipher，丢失不可恢复
+    master-key: ${APP_MASTER_KEY:}
+    # Java → Python 内部调用令牌
+    internal-token: ${INTERNAL_TOKEN:}
 
 logging:
   level:
     root: INFO
-    com.knowbase: DEBUG
+    com.knowbase: INFO
   pattern:
     console: "%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%X{traceId:-no-trace}] %logger{40} - %msg%n"

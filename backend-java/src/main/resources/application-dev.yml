@@ -1,0 +1,11 @@
+# 仅本机开发使用。数据库连接不加密，因为容器只监听 127.0.0.1。
+# 任何对外可访问的环境都必须用 SPRING_PROFILES_ACTIVE=prod。
+spring:
+  datasource:
+    url: jdbc:mysql://${MYSQL_HOST:127.0.0.1}:${MYSQL_PORT:33307}/${MYSQL_DATABASE:knowbase}?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&sslMode=DISABLED&allowPublicKeyRetrieval=true
+    username: ${MYSQL_USER:knowbase}
+    password: ${MYSQL_PASSWORD}
+
+logging:
+  level:
+    com.knowbase: DEBUG

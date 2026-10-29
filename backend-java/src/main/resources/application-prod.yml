@@ -1,0 +1,18 @@
+# 生产配置：所有敏感值必须由环境注入，没有任何默认值。
+spring:
+  datasource:
+    url: jdbc:mysql://${MYSQL_HOST}:${MYSQL_PORT}/${MYSQL_DATABASE}?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&sslMode=VERIFY_IDENTITY&allowPublicKeyRetrieval=false
+    username: ${MYSQL_USER}
+    password: ${MYSQL_PASSWORD}
+  data:
+    redis:
+      # 这里给空默认值是刻意的：让启动校验报「REDIS_PASSWORD 在生产环境不能为空」，
+      # 而不是抛出英文的 Could not resolve placeholder 'REDIS_PASSWORD'。
+      password: ${REDIS_PASSWORD:}
+
+server:
+  forward-headers-strategy: native
+
+logging:
+  level:
+    com.knowbase: INFO

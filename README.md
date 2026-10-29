@@ -82,6 +82,53 @@ KnowBase-AI/
 
 5. Python AI 服务与前端启动命令：待补充（T1.5 / T1.11 产出）。
 
+## 配置与安全
+
+### 三个配置文件的分工
+
+| 文件 | 作用 |
+| --- | --- |
+| `application.yml` | 通用配置：端口、连接池、Redis、Flyway、日志格式。不含任何密码或弱默认值 |
+| `application-dev.yml` | 本机开发：账号密码取自环境变量，数据库连接不加密（容器只监听 `127.0.0.1`） |
+| `application-prod.yml` | 生产：所有敏感值只能由环境注入，没有任何默认值，数据库连接强制 `sslMode=VERIFY_IDENTITY` |
+
+### 没有默认密码
+
+后端刻意不为 `MYSQL_PASSWORD`、`APP_MASTER_KEY` 提供默认值。缺失、留空或仍是 `.env.example` 里的示例值时，进程会直接启动失败，而不是带着弱口令跑起来：
+
+```
+配置校验失败，拒绝启动：
+  - MYSQL_PASSWORD 仍是示例占位值，必须替换
+  - APP_MASTER_KEY 未设置
+请参考 .env.example 与 README 的「配置与安全」章节。
+```
+
+`APP_MASTER_KEY` 必须是 **32 字节**随机密钥的 base64 编码：
+
+```bash
+openssl rand -base64 32
+```
+
+它用于加密 `ai_model_config.api_key_cipher`，**一旦丢失，已存的模型 API Key 无法解密恢复**，请单独备份。
+
+### 生产部署
+
+部署到任何可被他人访问的环境，必须设置：
+
+```
+SPRING_PROFILES_ACTIVE=prod
+```
+
+此时数据库连接使用 `sslMode=VERIFY_IDENTITY`，且 `INTERNAL_TOKEN`（≥32 字符）与 `REDIS_PASSWORD` 必须非空。
+
+### 健康检查不回显异常原文
+
+`/health` 只返回依赖名与稳定状态码（如 `TIMEOUT`、`CONNECTION_REFUSED`、`AUTH_FAILED`、`HTTP_503`），不含异常类名或异常消息。排查时用响应头 `X-Trace-Id` 到服务端日志里检索同一条链路。
+
+配置了 `QDRANT_API_KEY` 时，Qdrant 探针改走 `/collections`（需要鉴权的接口），密钥不对会返回 `AUTH_FAILED`；Qdrant 的 `/healthz`、`/readyz` 本身不校验密钥，用它们探活发现不了密钥配错。
+
+> T1.6 接入 Spring Security 后补齐 HTTP 安全响应头与接口鉴权。
+
 ## 端口
 
 | 服务 | 端口 |
