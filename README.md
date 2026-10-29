@@ -92,6 +92,10 @@ KnowBase-AI/
 | `application-dev.yml` | 本机开发：账号密码取自环境变量，数据库连接不加密（容器只监听 `127.0.0.1`） |
 | `application-prod.yml` | 生产：所有敏感值只能由环境注入，没有任何默认值，数据库连接强制 `sslMode=VERIFY_IDENTITY` |
 
+### 本机怎么把密钥交给进程
+
+`dev` profile 会自动导入仓库根的 `.env`（`optional:file:./.env[.properties]` 与 `../.env[.properties]`），IDE 里直接点运行、命令行 `mvn spring-boot:run` 都不必先手工导出变量。`prod` 不读任何文件，只认真实环境变量；且 OS 环境变量优先级高于 `.env`，临时覆盖直接写在命令前即可。
+
 ### 没有默认密码
 
 后端刻意不为 `MYSQL_PASSWORD`、`APP_MASTER_KEY` 提供默认值。缺失、留空或仍是 `.env.example` 里的示例值时，进程会直接启动失败，而不是带着弱口令跑起来：

@@ -115,7 +115,7 @@ public class StartupSecurityValidator implements InitializingBean {
         if (devProfile) {
             log.warn("当前使用 dev 配置：数据库连接未启用 TLS，仅限本机开发；部署请设置 SPRING_PROFILES_ACTIVE=prod");
         }
-        log.info("启动配置校验通过，active profiles = {}", String.join(",", environment.getActiveProfiles()));
+        log.info("启动配置校验通过，active profiles = {}", activeProfileNames());
     }
 
     /** 值里含示例关键字就记一条问题；只报告变量名，不回显取值。 */
@@ -143,6 +143,17 @@ public class StartupSecurityValidator implements InitializingBean {
 
     private boolean hasText(String value) {
         return value != null && !value.isBlank() && !UNRESOLVED_PLACEHOLDER.matcher(value.trim()).matches();
+    }
+
+    /**
+     * 实际生效的 profile 名。
+     *
+     * <p>只读 {@code getActiveProfiles()} 会漏掉 spring.profiles.default 兜底出来的 dev，
+     * 日志里就成了「active profiles = 」空一串，看日志的人会以为 profile 没生效。
+     */
+    private String activeProfileNames() {
+        String[] active = environment.getActiveProfiles();
+        return String.join(",", active.length > 0 ? active : environment.getDefaultProfiles());
     }
 
     /** 值里是否还残留未被解析的 {@code ${...}}。 */
