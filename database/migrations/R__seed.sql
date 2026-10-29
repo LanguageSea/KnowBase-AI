@@ -6,6 +6,14 @@
 --    - 管理员：只在不存在时创建，**重复执行不会重置密码**
 --    - 用户角色关联：INSERT IGNORE，天然幂等
 --
+--  语法选择：
+--    这里刻意**不使用** `VALUES (...) AS new ON DUPLICATE KEY UPDATE` 的行别名写法。
+--    行别名要求 MySQL 8.0.19+，在 5.7 和 8.0.0–8.0.18 上会报
+--      ERROR 1064 ... right syntax to use near 'AS new'
+--    而本文件会被人在 Navicat / DBeaver 里手工执行，无法保证连到的服务端版本，
+--    因此统一改用「ON DUPLICATE KEY UPDATE 直接写字面量」——
+--    该写法从 MySQL 5.7 到 8.4 / 9.x 全部通用（代价是字面量重复一次）。
+--
 --  默认管理员：admin / Admin@123456
 --  ⚠ 该密码仅用于本地开发与演示，部署到任何可被访问的环境前必须修改。
 -- ============================================================================
@@ -16,21 +24,33 @@ SET NAMES utf8mb4;
 -- 角色
 -- ---------------------------------------------------------------------------
 INSERT INTO sys_role (code, name, description, status, created_at, updated_at)
-VALUES ('SYS_ADMIN', '系统管理员', '用户、角色、模型服务、系统参数、审计日志', 'ACTIVE', NOW(3), NOW(3)) AS new
-ON DUPLICATE KEY UPDATE name = new.name, description = new.description, status = new.status, updated_at = new.updated_at;
+VALUES ('SYS_ADMIN', '系统管理员', '用户、角色、模型服务、系统参数、审计日志', 'ACTIVE', NOW(3), NOW(3))
+ON DUPLICATE KEY UPDATE
+    name        = '系统管理员',
+    description = '用户、角色、模型服务、系统参数、审计日志',
+    status      = 'ACTIVE',
+    updated_at  = NOW(3);
 
 INSERT INTO sys_role (code, name, description, status, created_at, updated_at)
-VALUES ('KB_ADMIN', '知识库管理员', '自有或获授权知识库的文档与成员管理', 'ACTIVE', NOW(3), NOW(3)) AS new
-ON DUPLICATE KEY UPDATE name = new.name, description = new.description, status = new.status, updated_at = new.updated_at;
+VALUES ('KB_ADMIN', '知识库管理员', '自有或获授权知识库的文档与成员管理', 'ACTIVE', NOW(3), NOW(3))
+ON DUPLICATE KEY UPDATE
+    name        = '知识库管理员',
+    description = '自有或获授权知识库的文档与成员管理',
+    status      = 'ACTIVE',
+    updated_at  = NOW(3);
 
 INSERT INTO sys_role (code, name, description, status, created_at, updated_at)
-VALUES ('USER', '普通用户', '访问已授权知识库并进行 AI 问答', 'ACTIVE', NOW(3), NOW(3)) AS new
-ON DUPLICATE KEY UPDATE name = new.name, description = new.description, status = new.status, updated_at = new.updated_at;
+VALUES ('USER', '普通用户', '访问已授权知识库并进行 AI 问答', 'ACTIVE', NOW(3), NOW(3))
+ON DUPLICATE KEY UPDATE
+    name        = '普通用户',
+    description = '访问已授权知识库并进行 AI 问答',
+    status      = 'ACTIVE',
+    updated_at  = NOW(3);
 
 -- ---------------------------------------------------------------------------
 -- 默认管理员
 --   password_hash 为 BCrypt(cost=10) of "Admin@123456"
---   重复执行时只更新昵称，绝不覆盖 password_hash——
+--   重复执行时只更新昵称与邮箱，绝不覆盖 password_hash——
 --   否则运维改过密码后，下一次部署会把密码重置回默认值。
 -- ---------------------------------------------------------------------------
 INSERT INTO sys_user (username, password_hash, nickname, email, status, token_version, created_at, updated_at)
@@ -38,8 +58,10 @@ VALUES ('admin',
         '$2a$10$2mbwAM8B7KEl/5K2jYyAIegLlCYDFbMQdDKTzB.jbyICbV3Dvgyta',
         '系统管理员',
         'admin@knowbase.local',
-        'ACTIVE', 0, NOW(3), NOW(3)) AS new
-ON DUPLICATE KEY UPDATE nickname = new.nickname, email = new.email;
+        'ACTIVE', 0, NOW(3), NOW(3))
+ON DUPLICATE KEY UPDATE
+    nickname = '系统管理员',
+    email    = 'admin@knowbase.local';
 
 -- ---------------------------------------------------------------------------
 -- 管理员 → SYS_ADMIN
