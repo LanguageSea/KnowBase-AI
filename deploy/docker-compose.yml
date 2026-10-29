@@ -1,0 +1,73 @@
+# KnowBase AI — Stage 1 infrastructure stack (MySQL / Redis / Qdrant).
+#
+# IMPORTANT: run this file from the repository root, e.g.
+#   docker compose --env-file .env -f deploy/docker-compose.yml up -d
+# Compose would otherwise look for the .env file next to this compose file
+# (deploy/.env), which is not where the project keeps it.
+
+name: knowbase
+
+services:
+  mysql:
+    image: mysql:8.4
+    container_name: knowbase-mysql
+    restart: unless-stopped
+    ports:
+      - "${MYSQL_PORT}:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+    command:
+      - "--character-set-server=utf8mb4"
+      - "--collation-server=utf8mb4_0900_ai_ci"
+      - "--default-time-zone=+08:00"
+    volumes:
+      - knowbase-mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -u root -p$$MYSQL_ROOT_PASSWORD"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  redis:
+    image: redis:8-alpine
+    container_name: knowbase-redis
+    restart: unless-stopped
+    ports:
+      - "${REDIS_PORT}:6379"
+    command: ["redis-server", "--appendonly", "yes", "--save", "60", "1"]
+    volumes:
+      - knowbase-redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  qdrant:
+    image: qdrant/qdrant:v1.20.0
+    container_name: knowbase-qdrant
+    restart: unless-stopped
+    ports:
+      - "6333:6333"
+      - "6334:6334"
+    volumes:
+      - knowbase-qdrant-data:/qdrant/storage
+      - knowbase-qdrant-snapshots:/qdrant/snapshots
+    healthcheck:
+      # curl is not guaranteed to exist in the qdrant image; probe the port
+      # with the bash built-in /dev/tcp redirect instead.
+      test: ["CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/127.0.0.1/6333'"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+volumes:
+  knowbase-mysql-data:
+  knowbase-redis-data:
+  knowbase-qdrant-data:
+  knowbase-qdrant-snapshots:
