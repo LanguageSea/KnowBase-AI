@@ -35,7 +35,7 @@ CREATE TABLE sys_role (
     updated_at  DATETIME(3)  NOT NULL,
     PRIMARY KEY (id),
     UNIQUE KEY uk_role_code (code)
-) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '角色';
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_general_ci COMMENT = '角色';
 
 -- ---------------------------------------------------------------------------
 -- 2. sys_user — 账户
@@ -55,7 +55,7 @@ CREATE TABLE sys_user (
     PRIMARY KEY (id),
     UNIQUE KEY uk_user_username (username),
     KEY idx_user_status (status)
-) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '用户账户';
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_general_ci COMMENT = '用户账户';
 
 -- ---------------------------------------------------------------------------
 -- 3. sys_user_role — 用户与角色
@@ -69,7 +69,7 @@ CREATE TABLE sys_user_role (
     KEY idx_user_role_role (role_id),
     CONSTRAINT fk_user_role_user FOREIGN KEY (user_id) REFERENCES sys_user (id) ON DELETE RESTRICT,
     CONSTRAINT fk_user_role_role FOREIGN KEY (role_id) REFERENCES sys_role (id) ON DELETE RESTRICT
-) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '用户角色关联';
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_general_ci COMMENT = '用户角色关联';
 
 -- ---------------------------------------------------------------------------
 -- 4. sys_user_login_log — 登录记录（失败锁定的证据链）
@@ -89,7 +89,7 @@ CREATE TABLE sys_user_login_log (
     KEY idx_login_username_time (username, created_at),
     KEY idx_login_time (created_at),
     CONSTRAINT fk_login_user FOREIGN KEY (user_id) REFERENCES sys_user (id) ON DELETE RESTRICT
-) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '登录日志';
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_general_ci COMMENT = '登录日志';
 
 -- ---------------------------------------------------------------------------
 -- 5. sys_operation_log — 关键操作审计
@@ -110,7 +110,7 @@ CREATE TABLE sys_operation_log (
     KEY idx_oplog_resource (resource_type, resource_id),
     KEY idx_oplog_time (created_at),
     CONSTRAINT fk_oplog_operator FOREIGN KEY (operator_id) REFERENCES sys_user (id) ON DELETE RESTRICT
-) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '操作审计';
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_general_ci COMMENT = '操作审计';
 
 -- ---------------------------------------------------------------------------
 -- 6. kb_knowledge_base — 知识库
@@ -129,7 +129,7 @@ CREATE TABLE kb_knowledge_base (
     KEY idx_kb_status (status),
     KEY idx_kb_owner (owner_id),
     CONSTRAINT fk_kb_owner FOREIGN KEY (owner_id) REFERENCES sys_user (id) ON DELETE RESTRICT
-) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '知识库';
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_general_ci COMMENT = '知识库';
 
 -- ---------------------------------------------------------------------------
 -- 7. kb_member — 知识库成员与权限
@@ -148,7 +148,7 @@ CREATE TABLE kb_member (
     CONSTRAINT fk_member_kb FOREIGN KEY (kb_id) REFERENCES kb_knowledge_base (id) ON DELETE RESTRICT,
     CONSTRAINT fk_member_user FOREIGN KEY (user_id) REFERENCES sys_user (id) ON DELETE RESTRICT,
     CONSTRAINT ck_member_role CHECK (role IN ('VIEWER', 'EDITOR', 'MANAGER'))
-) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '知识库成员';
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_general_ci COMMENT = '知识库成员';
 
 -- ---------------------------------------------------------------------------
 -- 8. kb_audit_grant — 授权变更留痕（只追加，不更新不删除）
@@ -168,7 +168,7 @@ CREATE TABLE kb_audit_grant (
     CONSTRAINT fk_grant_kb FOREIGN KEY (kb_id) REFERENCES kb_knowledge_base (id) ON DELETE RESTRICT,
     CONSTRAINT fk_grant_target FOREIGN KEY (target_user_id) REFERENCES sys_user (id) ON DELETE RESTRICT,
     CONSTRAINT fk_grant_operator FOREIGN KEY (operator_id) REFERENCES sys_user (id) ON DELETE RESTRICT
-) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '授权变更记录';
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_general_ci COMMENT = '授权变更记录';
 
 -- ---------------------------------------------------------------------------
 -- 9. kb_document — 文档元数据与状态
@@ -205,7 +205,7 @@ CREATE TABLE kb_document (
     CONSTRAINT fk_doc_uploader FOREIGN KEY (uploaded_by) REFERENCES sys_user (id) ON DELETE RESTRICT,
     CONSTRAINT ck_doc_status CHECK (status IN ('PENDING','PROCESSING','ACTIVE','FAILED',
                                                'DELETING','DELETED','DELETE_FAILED'))
-) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '文档';
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_general_ci COMMENT = '文档';
 
 -- ---------------------------------------------------------------------------
 -- 10. kb_document_chunk — 文本分片与向量 ID 关联
@@ -226,7 +226,7 @@ CREATE TABLE kb_document_chunk (
     UNIQUE KEY uk_chunk_doc_seq (doc_id, seq),
     UNIQUE KEY uk_chunk_id_doc (id, doc_id) COMMENT '供引用表复合外键使用',
     CONSTRAINT fk_chunk_doc FOREIGN KEY (doc_id) REFERENCES kb_document (id) ON DELETE RESTRICT
-) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '文档分片';
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_general_ci COMMENT = '文档分片';
 
 -- ---------------------------------------------------------------------------
 -- 11. kb_ingestion_task — 文档处理任务
@@ -254,7 +254,7 @@ CREATE TABLE kb_ingestion_task (
     KEY idx_task_doc (doc_id, status),
     CONSTRAINT fk_task_doc FOREIGN KEY (doc_id) REFERENCES kb_document (id) ON DELETE RESTRICT,
     CONSTRAINT ck_task_status CHECK (status IN ('QUEUED','RUNNING','SUCCESS','FAILED','DEAD'))
-) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '文档处理任务';
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_general_ci COMMENT = '文档处理任务';
 
 -- ---------------------------------------------------------------------------
 -- 12. ai_model_config — 模型服务配置
@@ -278,7 +278,7 @@ CREATE TABLE ai_model_config (
     UNIQUE KEY uk_model_identity (provider, model_name, model_type),
     KEY idx_model_type_enabled (model_type, enabled),
     CONSTRAINT ck_model_type CHECK (model_type IN ('CHAT','EMBEDDING','RERANK'))
-) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '模型服务配置';
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_general_ci COMMENT = '模型服务配置';
 
 -- ---------------------------------------------------------------------------
 -- 13. ai_conversation — 会话
@@ -293,7 +293,7 @@ CREATE TABLE ai_conversation (
     PRIMARY KEY (id),
     KEY idx_conv_user_time (user_id, updated_at),
     CONSTRAINT fk_conv_user FOREIGN KEY (user_id) REFERENCES sys_user (id) ON DELETE RESTRICT
-) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '问答会话';
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_general_ci COMMENT = '问答会话';
 
 -- ---------------------------------------------------------------------------
 -- 14. ai_conversation_kb — 会话 × 知识库
@@ -307,7 +307,7 @@ CREATE TABLE ai_conversation_kb (
     KEY idx_convkb_kb (kb_id),
     CONSTRAINT fk_convkb_conv FOREIGN KEY (conversation_id) REFERENCES ai_conversation (id) ON DELETE RESTRICT,
     CONSTRAINT fk_convkb_kb FOREIGN KEY (kb_id) REFERENCES kb_knowledge_base (id) ON DELETE RESTRICT
-) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '会话关联知识库';
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_general_ci COMMENT = '会话关联知识库';
 
 -- ---------------------------------------------------------------------------
 -- 15. ai_message — 消息
@@ -329,7 +329,7 @@ CREATE TABLE ai_message (
     KEY idx_msg_conv (conversation_id, id),
     CONSTRAINT fk_msg_conv FOREIGN KEY (conversation_id) REFERENCES ai_conversation (id) ON DELETE RESTRICT,
     CONSTRAINT ck_msg_role CHECK (role IN ('USER','ASSISTANT','SYSTEM'))
-) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '问答消息';
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_general_ci COMMENT = '问答消息';
 
 -- ---------------------------------------------------------------------------
 -- 16. ai_message_citation — 引用
@@ -352,7 +352,7 @@ CREATE TABLE ai_message_citation (
     CONSTRAINT fk_citation_msg FOREIGN KEY (message_id) REFERENCES ai_message (id) ON DELETE RESTRICT,
     CONSTRAINT fk_citation_chunk_doc FOREIGN KEY (chunk_id, doc_id)
         REFERENCES kb_document_chunk (id, doc_id) ON DELETE RESTRICT
-) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '回答引用';
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_general_ci COMMENT = '回答引用';
 
 -- ---------------------------------------------------------------------------
 -- 17. ai_call_log — 模型调用记录
@@ -375,4 +375,4 @@ CREATE TABLE ai_call_log (
     KEY idx_call_model_time (model_config_id, created_at),
     KEY idx_call_scene_time (scene, created_at),
     CONSTRAINT fk_call_model FOREIGN KEY (model_config_id) REFERENCES ai_model_config (id) ON DELETE SET NULL
-) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '模型调用日志';
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_general_ci COMMENT = '模型调用日志';
