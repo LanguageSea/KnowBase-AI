@@ -1,0 +1,202 @@
+name: knowbase-prod
+
+# Single-host production/demo orchestration.
+# The only host-published ports are Nginx 80/443. MySQL, Redis, Qdrant,
+# Java and Python communicate exclusively on private Docker networks.
+
+services:
+  mysql:
+    image: mysql:8.4
+    restart: unless-stopped
+    command:
+      - "--character-set-server=utf8mb4"
+      - "--collation-server=utf8mb4_general_ci"
+      - "--default-time-zone=+08:00"
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+    volumes:
+      - knowbase-mysql-data:/var/lib/mysql
+    networks:
+      - data
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -u root -p$$MYSQL_ROOT_PASSWORD --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
+    security_opt:
+      - no-new-privileges:true
+
+  redis:
+    image: redis:8-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes", "--save", "60", "1", "--requirepass", "${REDIS_PASSWORD}"]
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+    volumes:
+      - knowbase-redis-data:/data
+    networks:
+      - data
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a \"$$REDIS_PASSWORD\" --no-auth-warning ping | grep -q PONG"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+    security_opt:
+      - no-new-privileges:true
+
+  qdrant:
+    image: qdrant/qdrant:v1.20.0
+    restart: unless-stopped
+    environment:
+      QDRANT__SERVICE__API_KEY: ${QDRANT_API_KEY}
+    volumes:
+      - knowbase-qdrant-data:/qdrant/storage
+      - knowbase-qdrant-snapshots:/qdrant/snapshots
+    networks:
+      - data
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/127.0.0.1/6333'"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    security_opt:
+      - no-new-privileges:true
+
+  ai-service:
+    build:
+      context: ..
+      dockerfile: backend-python/Dockerfile
+    restart: unless-stopped
+    environment:
+      APP_ENV: prod
+      INTERNAL_TOKEN: ${INTERNAL_TOKEN}
+      QDRANT_URL: http://qdrant:6333
+      QDRANT_COLLECTION: ${QDRANT_COLLECTION:-knowbase_chunks}
+      QDRANT_API_KEY: ${QDRANT_API_KEY}
+      EMBEDDING_DIM: ${EMBEDDING_DIM:-1024}
+      LLM_BASE_URL: ${LLM_BASE_URL:-}
+      LLM_API_KEY: ${LLM_API_KEY:-}
+      LLM_CHAT_MODEL: ${LLM_CHAT_MODEL:-deepseek-chat}
+      LLM_EMBEDDING_BASE_URL: ${LLM_EMBEDDING_BASE_URL:-}
+      LLM_EMBEDDING_API_KEY: ${LLM_EMBEDDING_API_KEY:-}
+      LLM_EMBEDDING_MODEL: ${LLM_EMBEDDING_MODEL:-text-embedding-3-small}
+      ALLOW_PRIVATE_MODEL_URLS: "false"
+    depends_on:
+      qdrant:
+        condition: service_healthy
+    networks:
+      - data
+      - egress
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import os,urllib.request; r=urllib.request.Request('http://127.0.0.1:8090/internal/health',headers={'X-Internal-Token':os.environ['INTERNAL_TOKEN']}); urllib.request.urlopen(r,timeout=3)"
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    security_opt:
+      - no-new-privileges:true
+
+  backend:
+    build:
+      context: ..
+      dockerfile: backend-java/Dockerfile
+    restart: unless-stopped
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      SERVER_PORT: "8080"
+      MYSQL_HOST: mysql
+      MYSQL_PORT: "3306"
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      MYSQL_SSL_MODE: DISABLED
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+      QDRANT_URL: http://qdrant:6333
+      QDRANT_API_KEY: ${QDRANT_API_KEY}
+      QDRANT_TIMEOUT_MS: ${QDRANT_TIMEOUT_MS:-3000}
+      PYTHON_SERVICE_URL: http://ai-service:8090
+      PYTHON_CONNECT_TIMEOUT_MS: ${PYTHON_CONNECT_TIMEOUT_MS:-5000}
+      PYTHON_READ_TIMEOUT_MS: ${PYTHON_READ_TIMEOUT_MS:-65000}
+      UPLOAD_DIR: /app/data/uploads
+      APP_MASTER_KEY: ${APP_MASTER_KEY}
+      INTERNAL_TOKEN: ${INTERNAL_TOKEN}
+      ALLOW_PRIVATE_MODEL_URLS: "false"
+      QA_TOP_K: ${QA_TOP_K:-5}
+      QA_SCORE_THRESHOLD: ${QA_SCORE_THRESHOLD:-0.2}
+      QA_RATE_LIMIT_PER_MINUTE: ${QA_RATE_LIMIT_PER_MINUTE:-20}
+      QA_CONTEXT_TOKEN_BUDGET: ${QA_CONTEXT_TOKEN_BUDGET:-3000}
+      QA_MAX_CONTEXT_CHUNKS: ${QA_MAX_CONTEXT_CHUNKS:-8}
+      QA_STREAM_TIMEOUT_MS: ${QA_STREAM_TIMEOUT_MS:-90000}
+      JAVA_OPTS: ${JAVA_OPTS:--XX:MaxRAMPercentage=75.0 -XX:+ExitOnOutOfMemoryError}
+    volumes:
+      - knowbase-uploads:/app/data/uploads
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      qdrant:
+        condition: service_healthy
+      ai-service:
+        condition: service_healthy
+    networks:
+      - data
+      - edge
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/127.0.0.1/8080'"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+      start_period: 45s
+    security_opt:
+      - no-new-privileges:true
+
+  nginx:
+    build:
+      context: ..
+      dockerfile: frontend/Dockerfile
+    restart: unless-stopped
+    ports:
+      - "${HTTP_PORT:-80}:80"
+      - "${HTTPS_PORT:-443}:443"
+    volumes:
+      - ./certs:/etc/nginx/tls
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - edge
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-check-certificate -q -O /dev/null https://127.0.0.1/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    security_opt:
+      - no-new-privileges:true
+
+networks:
+  data:
+    internal: true
+  edge:
+  egress:
+
+volumes:
+  knowbase-mysql-data:
+  knowbase-redis-data:
+  knowbase-qdrant-data:
+  knowbase-qdrant-snapshots:
+  knowbase-uploads:

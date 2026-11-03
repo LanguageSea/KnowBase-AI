@@ -1,0 +1,3 @@
+interface:
+  display_name: "KnowBase AI Dev"
+  short_description: "Fast RAG dev for KnowBase-AI repo stages"

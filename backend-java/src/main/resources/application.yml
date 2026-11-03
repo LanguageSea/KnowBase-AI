@@ -1,7 +1,6 @@
 server:
   port: ${SERVER_PORT:8080}
   shutdown: graceful
-  # 绝不把堆栈/异常类名/绑定错误回给客户端；排查一律靠 traceId + 服务端日志
   error:
     include-stacktrace: never
     include-message: never
@@ -12,15 +11,12 @@ server:
   tomcat:
     max-http-form-post-size: 2MB
     max-swallow-size: 2MB
-
 spring:
   application:
     name: knowbase-backend
   profiles:
     default: dev
   datasource:
-    # 连接串与账号密码按 profile 区分：dev 明文本机连，prod 强制 TLS。
-    # 这里刻意不提供任何默认密码——缺环境变量就必须启动失败，而不是带着弱口令跑起来。
     hikari:
       maximum-pool-size: 10
       minimum-idle: 2
@@ -38,20 +34,37 @@ spring:
     locations: classpath:db/migration
     validate-on-migrate: true
     out-of-order: false
-    # 防止误执行 flyway clean 把整个库删掉
     clean-disabled: true
-
+  servlet:
+    multipart:
+      max-file-size: 20MB
+      max-request-size: 21MB
+      enabled: true
+app:
+  jwt:
+    ttl-seconds: 7200
 knowbase:
   qdrant:
     url: ${QDRANT_URL:http://127.0.0.1:6333}
     api-key: ${QDRANT_API_KEY:}
     timeout-ms: ${QDRANT_TIMEOUT_MS:2000}
+  python:
+    base-url: ${PYTHON_SERVICE_URL:http://127.0.0.1:8090}
+    connect-timeout-ms: ${PYTHON_CONNECT_TIMEOUT_MS:5000}
+    read-timeout-ms: ${PYTHON_READ_TIMEOUT_MS:65000}
+  storage:
+    upload-dir: ${UPLOAD_DIR:./data/uploads}
+  qa:
+    top-k: ${QA_TOP_K:5}
+    score-threshold: ${QA_SCORE_THRESHOLD:0.2}
+    rate-limit-per-minute: ${QA_RATE_LIMIT_PER_MINUTE:20}
+    context-token-budget: ${QA_CONTEXT_TOKEN_BUDGET:3000}
+    max-context-chunks: ${QA_MAX_CONTEXT_CHUNKS:8}
+    stream-timeout-ms: ${QA_STREAM_TIMEOUT_MS:90000}
   security:
-    # 32 字节 base64；用于加密 ai_model_config.api_key_cipher，丢失不可恢复
     master-key: ${APP_MASTER_KEY:}
-    # Java → Python 内部调用令牌
     internal-token: ${INTERNAL_TOKEN:}
-
+    allow-private-model-urls: ${ALLOW_PRIVATE_MODEL_URLS:false}
 logging:
   level:
     root: INFO

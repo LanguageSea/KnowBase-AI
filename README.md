@@ -4,7 +4,32 @@
 
 ## 当前状态
 
-**Stage 1 进行中（T1.1–T1.4）** —— 仓库骨架、基础设施编排、数据库迁移与后端工程初始化。
+**Stage 5 交付实现完成（T5.1–T5.12）** —— 固定评估集、真实 RAG 评估、Testcontainers
+主干测试、权限矩阵、生产 Compose/Nginx、备份恢复脚本、用户/运维/验收文档、演示脚本、
+简历与已知问题均已落盘。
+
+Stage 1–4 的上传、解析、向量检索、带引用问答、流式回答、权限隔离、模型配置和可观测性
+保持可用。
+
+当前环境已通过 Java/Python/前端/RAG/权限矩阵/HTTP 冒烟；Docker daemon 拒绝访问，
+因此跨容器 IT、备份恢复演练和干净环境启动仍需在可用 Docker 环境执行。真实状态见
+[ACCEPTANCE.md](docs/ACCEPTANCE.md) 与 [STAGE5_TEST_REPORT.md](docs/STAGE5_TEST_REPORT.md)。
+T5.10 录屏已按用户要求取消，演示脚本保留在 [DEMO.md](docs/DEMO.md)。
+
+### Stage 5 交付入口
+
+| 交付物 | 入口 |
+|---|---|
+| 用户使用手册 | [USER_MANUAL.md](docs/USER_MANUAL.md) |
+| 部署与运维 | [RUNBOOK.md](docs/RUNBOOK.md)、[TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) |
+| 系统架构 | [ARCHITECTURE.md](docs/ARCHITECTURE.md) |
+| 数据库与 ER 图 | [DATABASE.md](docs/DATABASE.md) |
+| API 文档 | [API_SPEC.md](docs/API_SPEC.md)、[INTERNAL_API.md](docs/INTERNAL_API.md) |
+| RAG 评估 | [EVALUATION.md](docs/EVALUATION.md)、[latest.md](tests/rag-evaluation/results/latest.md) |
+| 验收结果 | [ACCEPTANCE.md](docs/ACCEPTANCE.md)、[STAGE5_TEST_REPORT.md](docs/STAGE5_TEST_REPORT.md) |
+| 演示录像脚本 | [DEMO.md](docs/DEMO.md) |
+| 简历与面试 | [RESUME.md](docs/RESUME.md)、[INTERVIEW_NOTES.md](docs/INTERVIEW_NOTES.md) |
+| 已知问题 | [KNOWN_ISSUES.md](docs/KNOWN_ISSUES.md) |
 
 ## 技术栈
 
@@ -16,7 +41,10 @@ Vue 3 + Spring Boot 4.1 + FastAPI + MySQL 8.4 / Redis 8 / Qdrant 1.20
 KnowBase-AI/
 ├── deploy/
 │   ├── docker-compose.yml
-│   └── scripts/
+│   ├── compose.prod.yml
+│   ├── nginx/
+│   ├── certs/
+│   └── scripts/             # check-env / cleanroom / backup / restore
 ├── database/
 │   ├── migrations/          # Flyway：V1__init.sql、R__seed.sql
 │   └── seed/
@@ -25,12 +53,15 @@ KnowBase-AI/
 ├── backend-python/          # FastAPI AI 服务（Stage 1 T1.5 起）
 ├── frontend/                # Vue 3 前端（Stage 1 T1.11 起）
 ├── tests/
-│   ├── smoke/
-│   └── rag-evaluation/
+│   ├── smoke/               # HTTP 闭环冒烟
+│   ├── rag-evaluation/      # 25 题固定集、执行器和结果
+│   └── docs/                # Markdown 链接检查
 ├── docs/
 │   ├── DEVELOPMENT_PLAN.md
-│   ├── STACK.md
-│   └── 项目名.md
+│   ├── USER_MANUAL.md
+│   ├── RUNBOOK.md
+│   ├── ACCEPTANCE.md
+│   └── ...
 ├── .env.example
 ├── .gitignore
 └── README.md
@@ -40,7 +71,7 @@ KnowBase-AI/
 
 - JDK 21
 - Maven 3.9+
-- Node 22+ 与 pnpm
+- Node 22+ 与 npm
 - uv（Python 依赖与环境管理）
 - Docker Desktop
 
@@ -80,7 +111,36 @@ KnowBase-AI/
    健康检查：`curl http://localhost:8080/health` 返回 `200` 且三个组件均 `UP`；
    停掉任一依赖（如 `docker stop knowbase-qdrant`）应返回 `503` 并在 `components` 里指出是哪个组件。
 
-5. Python AI 服务与前端启动命令：待补充（T1.5 / T1.11 产出）。
+5. 启动 Python AI 服务：
+
+   ```powershell
+   cd backend-python
+   uv run uvicorn app.main:app --host 127.0.0.1 --port 8090
+   ```
+
+   另开终端启动前端：
+
+   ```powershell
+   cd frontend
+   npm run dev
+   ```
+
+   打开 `http://127.0.0.1:5173` 进入面向面试官的项目展示页。点击「进入系统」登录后，
+   管理员可在「系统设置」中维护模型、查看健康/积压和审计记录；登录后也可从顶部导航返回项目展示。
+
+   前端 E2E 测试复用该 dev server：
+
+   ```powershell
+   cd frontend
+   npm run test:e2e
+   ```
+
+   后端与数据库已启动时，验证真实登录和返回展示页：
+
+   ```powershell
+   $env:E2E_LIVE_LOGIN='1'
+   npm run test:e2e
+   ```
 
 ## 配置与安全
 
@@ -115,15 +175,46 @@ openssl rand -base64 32
 
 它用于加密 `ai_model_config.api_key_cipher`，**一旦丢失，已存的模型 API Key 无法解密恢复**，请单独备份。
 
+模型服务地址默认只允许 HTTPS，并拒绝环回、私网、链路本地和云元数据地址。仅本地 Ollama
+开发时可显式设置 `ALLOW_PRIVATE_MODEL_URLS=true`，不得在生产环境开启。
+
+### 用 DeepSeek 驱动知识库问答
+
+登录系统管理员账号后，在「系统设置 → 模型服务」新增一条 `CHAT` 配置：
+
+- Provider：`deepseek`
+- 模型名称：`deepseek-chat`
+- Base URL：`https://api.deepseek.com`
+- API Key：在页面录入，保存后数据库只保留 AES-GCM 密文，接口只显示掩码
+- 参数：例如 `{"temperature":0.2,"max_tokens":2048}`
+
+保存后先执行「测试连接」，再进入知识库问答。回答元数据中的
+`chatProvider=openai-compatible:deepseek-chat` 表示 DeepSeek 已生效；若没有启用的
+`CHAT` 配置且 `LLM_API_KEY` 为空，系统仍会明确回退到 `local-extractive`。
+
+问答会先检索当前用户有权访问的知识库。检索有依据时，DeepSeek 会先阅读并综合分析
+检索到的资料，再基于引用资料回答；
+检索为空时，先明确提示“知识库中未找到相关依据”，再使用通用模型回答并注明这是通用知识，
+不会把模型常识伪装成企业内部制度，也不会生成引用。
+
+模型配置、健康检查、审计和故障排查详见 `docs/API_SPEC.md` 与 `docs/TROUBLESHOOTING.md`。
+
 ### 生产部署
 
-部署到任何可被他人访问的环境，必须设置：
+完整步骤见 [RUNBOOK.md](docs/RUNBOOK.md)。生产入口为
+[`deploy/compose.prod.yml`](deploy/compose.prod.yml)，只向宿主暴露 Nginx 80/443。
 
-```
-SPRING_PROFILES_ACTIVE=prod
+```powershell
+Copy-Item .env.production.example .env
+.\deploy\scripts\check-env.ps1
+docker compose --project-name knowbase-prod --env-file .env `
+  -f deploy\compose.prod.yml config --quiet
+docker compose --project-name knowbase-prod --env-file .env `
+  -f deploy\compose.prod.yml up -d
 ```
 
-此时数据库连接使用 `sslMode=VERIFY_IDENTITY`，且 `INTERNAL_TOKEN`（≥32 字符）与 `REDIS_PASSWORD` 必须非空。
+`.env` 中的密钥必须独立生成；生产首次登录后立即修改默认管理员密码。互联网部署前替换
+`deploy/certs/tls.crt` 和 `tls.key` 为受信任证书。
 
 ### 健康检查不回显异常原文
 
@@ -133,7 +224,7 @@ SPRING_PROFILES_ACTIVE=prod
 
 > T1.6 接入 Spring Security 后补齐 HTTP 安全响应头与接口鉴权。
 
-## 端口
+## 本地开发端口
 
 | 服务 | 端口 |
 | --- | --- |
@@ -146,6 +237,15 @@ SPRING_PROFILES_ACTIVE=prod
 | 前端（Vite） | 5173 |
 
 > 宿主机 3306 已被本机已有的 MySQL 占用，故 MySQL 对外映射为 33307，Redis 同样错开到 16380。
+
+生产 Compose 只发布：
+
+| 服务 | 宿主端口 |
+| --- | --- |
+| Nginx HTTP | 80（跳转 HTTPS） |
+| Nginx HTTPS | 443 |
+
+MySQL、Redis、Qdrant、Java、Python 不映射宿主端口。
 
 ## 安全提示
 

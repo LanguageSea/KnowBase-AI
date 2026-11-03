@@ -1,0 +1,56 @@
+{
+  "version": "1.0",
+  "description": "Stable fixture keys used by dataset.jsonl. The runner maps each key to the document and chunk IDs created in the target system.",
+  "documents": [
+    {
+      "key": "expense",
+      "file": "documents/01-expense.md",
+      "display_name": "差旅报销制度.md"
+    },
+    {
+      "key": "leave",
+      "file": "documents/02-leave.md",
+      "display_name": "休假管理办法.md"
+    },
+    {
+      "key": "security",
+      "file": "documents/03-security.md",
+      "display_name": "信息安全规范.md"
+    },
+    {
+      "key": "onboarding",
+      "file": "documents/04-onboarding.md",
+      "display_name": "新员工入职指南.md"
+    },
+    {
+      "key": "travel",
+      "file": "documents/05-travel.md",
+      "display_name": "出差预订规范.md"
+    },
+    {
+      "key": "procurement",
+      "file": "documents/06-procurement.md",
+      "display_name": "采购管理办法.md"
+    },
+    {
+      "key": "data",
+      "file": "documents/07-data-classification.md",
+      "display_name": "数据分级与传输规范.md"
+    },
+    {
+      "key": "support",
+      "file": "documents/08-support-sla.md",
+      "display_name": "技术支持服务级别.md"
+    },
+    {
+      "key": "remote",
+      "file": "documents/09-remote-work.md",
+      "display_name": "远程办公规范.md"
+    },
+    {
+      "key": "adversarial",
+      "file": "documents/10-adversarial-source.md",
+      "display_name": "供应商备案与提示词注入样例.md"
+    }
+  ]
+}

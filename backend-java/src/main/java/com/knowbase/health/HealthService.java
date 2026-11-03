@@ -1,19 +1,17 @@
 package com.knowbase.health;
 
+import java.io.InputStream;
 import java.io.IOException;
 import java.net.ConnectException;
+import java.net.HttpURLConnection;
 import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpConnectTimeoutException;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
-import java.net.http.HttpTimeoutException;
+import java.net.SocketTimeoutException;
+import java.net.UnknownHostException;
 import java.nio.channels.ClosedChannelException;
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
-import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -46,28 +44,31 @@ public class HealthService {
 
     private final DataSource dataSource;
     private final StringRedisTemplate redisTemplate;
-    private final HttpClient httpClient;
     private final String qdrantUrl;
     private final String qdrantApiKey;
+    private final String pythonUrl;
+    private final String internalToken;
     private final int timeoutMs;
 
     public HealthService(DataSource dataSource,
                          StringRedisTemplate redisTemplate,
                          @Value("${knowbase.qdrant.url}") String qdrantUrl,
                          @Value("${knowbase.qdrant.api-key:}") String qdrantApiKey,
+                         @Value("${knowbase.python.base-url}") String pythonUrl,
+                         @Value("${knowbase.security.internal-token:}") String internalToken,
                          @Value("${knowbase.qdrant.timeout-ms:2000}") int timeoutMs) {
         this.dataSource = dataSource;
         this.redisTemplate = redisTemplate;
         this.qdrantUrl = qdrantUrl.endsWith("/") ? qdrantUrl.substring(0, qdrantUrl.length() - 1) : qdrantUrl;
         this.qdrantApiKey = qdrantApiKey;
+        this.pythonUrl = pythonUrl.endsWith("/") ? pythonUrl.substring(0, pythonUrl.length() - 1) : pythonUrl;
+        this.internalToken = internalToken;
         this.timeoutMs = timeoutMs;
-        this.httpClient = HttpClient.newBuilder()
-                .connectTimeout(Duration.ofMillis(timeoutMs))
-                .build();
     }
 
     public HealthReport check() {
-        List<ComponentHealth> components = List.of(checkMysql(), checkRedis(), checkQdrant());
+        List<ComponentHealth> components = List.of(
+                checkMysql(), checkRedis(), checkQdrant(), checkPython());
         boolean allUp = components.stream().allMatch(ComponentHealth::isUp);
         return new HealthReport(allUp ? "UP" : "DEGRADED", Instant.now().toString(), components);
     }
@@ -111,29 +112,76 @@ public class HealthService {
         // 用它们即使密钥配错也照样 UP，等于把「服务活着」当成「我们能用它」。
         List<String> paths = hasApiKey() ? List.of("/collections") : List.of("/healthz", "/readyz");
         for (String path : paths) {
+            HttpURLConnection connection = null;
             try {
-                HttpRequest.Builder builder = HttpRequest.newBuilder(URI.create(qdrantUrl + path))
-                        .timeout(Duration.ofMillis(timeoutMs))
-                        .GET();
+                connection = (HttpURLConnection) URI.create(qdrantUrl + path).toURL().openConnection();
+                connection.setConnectTimeout(timeoutMs);
+                connection.setReadTimeout(timeoutMs);
+                connection.setRequestMethod("GET");
                 // 开了鉴权的 Qdrant 对未带 api-key 的请求回 401，
                 // 不带这个头会把「密钥没配」误报成「服务不可用」。
                 if (hasApiKey()) {
-                    builder.header("api-key", qdrantApiKey);
+                    connection.setRequestProperty("api-key", qdrantApiKey);
                 }
-                HttpResponse<Void> response = httpClient.send(builder.build(), HttpResponse.BodyHandlers.discarding());
-                if (response.statusCode() >= 200 && response.statusCode() < 300) {
+                int status = connection.getResponseCode();
+                InputStream responseBody = status >= 400
+                        ? connection.getErrorStream()
+                        : connection.getInputStream();
+                if (responseBody != null) {
+                    responseBody.close();
+                }
+                if (status >= 200 && status < 300) {
                     return ComponentHealth.up("qdrant", elapsedMs(start));
                 }
-                boolean authFailure = response.statusCode() == 401 || response.statusCode() == 403;
-                codes.add(path + "=" + (authFailure ? "AUTH_FAILED" : "HTTP_" + response.statusCode()));
-                reasons.add(path + " -> HTTP " + response.statusCode());
+                boolean authFailure = status == 401 || status == 403;
+                codes.add(path + "=" + (authFailure ? "AUTH_FAILED" : "HTTP_" + status));
+                reasons.add(path + " -> HTTP " + status);
             } catch (Exception ex) {
                 codes.add(path + "=" + classify(ex));
                 reasons.add(path + " -> " + rootMessage(ex));
+            } finally {
+                if (connection != null) {
+                    connection.disconnect();
+                }
             }
         }
         log.warn("qdrant health check failed: {}", String.join("; ", reasons));
         return ComponentHealth.down("qdrant", elapsedMs(start), String.join("; ", codes));
+    }
+
+    private ComponentHealth checkPython() {
+        long start = System.nanoTime();
+        HttpURLConnection connection = null;
+        try {
+            connection = (HttpURLConnection) URI.create(pythonUrl + "/internal/health")
+                    .toURL().openConnection();
+            connection.setConnectTimeout(timeoutMs);
+            connection.setReadTimeout(timeoutMs);
+            connection.setRequestMethod("GET");
+            connection.setRequestProperty("X-Internal-Token", internalToken == null ? "" : internalToken);
+            int status = connection.getResponseCode();
+            InputStream body = status >= 400 ? connection.getErrorStream() : connection.getInputStream();
+            if (body != null) {
+                body.close();
+            }
+            if (status >= 200 && status < 300) {
+                return ComponentHealth.up("python", elapsedMs(start));
+            }
+            if (status == 401 || status == 403) {
+                return ComponentHealth.down("python", elapsedMs(start), "AUTH_FAILED");
+            }
+            if (status == 503) {
+                return ComponentHealth.down("python", elapsedMs(start), "AI_DEGRADED");
+            }
+            return ComponentHealth.down("python", elapsedMs(start), "HTTP_" + status);
+        } catch (Exception ex) {
+            log.warn("python health check failed: {}", rootMessage(ex));
+            return ComponentHealth.down("python", elapsedMs(start), classify(ex));
+        } finally {
+            if (connection != null) {
+                connection.disconnect();
+            }
+        }
     }
 
     private long elapsedMs(long startNanos) {
@@ -158,8 +206,11 @@ public class HealthService {
                 String sqlState = sqlException.getSQLState();
                 return sqlState != null && sqlState.startsWith("28") ? "AUTH_FAILED" : "DB_ERROR";
             }
-            if (current instanceof HttpConnectTimeoutException || current instanceof HttpTimeoutException) {
+            if (current instanceof SocketTimeoutException) {
                 return "TIMEOUT";
+            }
+            if (current instanceof UnknownHostException) {
+                return "DNS_ERROR";
             }
             if (current instanceof ConnectException || current instanceof ClosedChannelException) {
                 return "CONNECTION_REFUSED";

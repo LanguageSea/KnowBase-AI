@@ -13,7 +13,13 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  *                      该密钥一旦丢失，已加密的模型 API Key 将永久无法解密恢复，
  *                      只能全部重新录入；必须单独备份，绝不可提交进仓库。
  * @param internalToken {@code INTERNAL_TOKEN}，Java 服务调用 Python AI 服务的内部令牌。
+ * @param allowPrivateModelUrls 是否允许模型地址指向私网。默认关闭；仅本地 Ollama 开发时可显式开启。
  */
 @ConfigurationProperties(prefix = "knowbase.security")
-public record SecurityProperties(String masterKey, String internalToken) {
+public record SecurityProperties(String masterKey, String internalToken,
+        Boolean allowPrivateModelUrls) {
+
+    public boolean privateModelUrlsAllowed() {
+        return Boolean.TRUE.equals(allowPrivateModelUrls);
+    }
 }

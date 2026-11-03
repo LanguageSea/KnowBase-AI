@@ -2,8 +2,14 @@
 .env
 .env.*
 !.env.example
+!.env.production.example
+deploy/certs/*.key
+deploy/certs/*.pem
+deploy/certs/*.crt
+.ssh/
 *.pem
 *.key
+docs/*密钥*.txt
 
 # ---- Python ----
 __pycache__/
@@ -27,6 +33,7 @@ node_modules/
 dist/
 .vite/
 *.local
+frontend/artifacts/
 
 # ---- runtime data ----
 data/
@@ -43,3 +50,11 @@ Thumbs.db
 # ---- misc ----
 *.tmp
 tmp/
+
+# ---- local verification caches ----
+.m2-work/
+backend-python/.venv*/
+backend-python/.uv-cache/
+backend-python/.pytest-tmp/
+backend-python/.pytest-cache-stage4/
+backend-python/.pytest-tmp-codex/
